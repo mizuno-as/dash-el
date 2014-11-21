@@ -1,0 +1,5 @@
+dash-el (2.10.0-1) unstable; urgency=low
+
+  * Initial release (Closes: #770466)
+
+ -- Hajime Mizuno <mizuno-as@ubuntu.com>  Fri, 21 Nov 2014 22:21:54 +0900

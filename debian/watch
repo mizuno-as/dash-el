@@ -1,0 +1,2 @@
+version=3
+https://github.com/magnars/dash.el/releases /magnars/dash.el/archive/(.+)\.tar\.gz
