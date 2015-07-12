@@ -5,19 +5,16 @@
 (defvar functions '())
 
 (defun example-to-string (example)
-  (-let* (((actual sym expected) example)
-	  (comment
-	   (cond
-	    ((eq sym '=>) (format "=> %S" expected))
-	    ((eq sym '~>) (format "~> %S" expected))
-	    ((eq sym '!!>) (format "Error"))
-	    (t (error "Invalid test case: %S" `(,actual ,sym ,expected))))))
-    (--> comment
-      (format "%S ;; %s" actual it)
+  (let ((actual (car example))
+        (expected (nth 2 example)))
+    (--> (format "@group\n%S\n    @result{} %S\n@end group" actual expected)
       (replace-regexp-in-string "\\\\\\?" "?" it)
-      (replace-regexp-in-string "\n" "\\n" it t t)
-      (replace-regexp-in-string "\t" "\\t" it t t)
-      (replace-regexp-in-string "\r" "\\r" it t t))))
+      (replace-regexp-in-string "{\"" "@{\"" it t t)
+      (replace-regexp-in-string "}\"" "@}\"" it t t)
+      (replace-regexp-in-string " {" " @{" it t t)
+      (replace-regexp-in-string "\"{" "\"@{" it t t)
+      (replace-regexp-in-string "}," "@{," it t t)
+      (replace-regexp-in-string "}@}" "@}@}" it t t))))
 
 (defun docs--signature (function)
   "Given FUNCTION (a symbol), return its argument list.
@@ -57,7 +54,7 @@ FUNCTION may reference an elisp function, alias, macro or a subr."
      ,@examples))
 
 (defun quote-and-downcase (string)
-  (format "`%s`" (downcase string)))
+  (format "@var{%s}" (downcase string)))
 
 (defun unquote-and-link (string)
   (format-link (substring string 1 -1)))
@@ -66,21 +63,33 @@ FUNCTION may reference an elisp function, alias, macro or a subr."
   (-let* ((name (intern string-name))
           ((_ signature _ _) (assoc name functions)))
     (if signature
-        (format "[`%s`](#%s)" name (github-id name signature))
-      (format "`%s`" name))))
+        (format "@code{%s} (@pxref{%s})" name name)
+      (format "@code{%s}" name))))
 
 (defun format-docstring (docstring)
   (let (case-fold-search)
     (--> docstring
       (replace-regexp-in-string "\\b\\([A-Z][A-Z-]*[0-9]*\\)\\b" 'quote-and-downcase it t)
       (replace-regexp-in-string "`\\([^ ]+\\)'" 'unquote-and-link it t)
+      (replace-regexp-in-string "{,@}" "{,@@}" it t)
       (replace-regexp-in-string "^  " "    " it))))
 
-(defun function-to-md (function)
+(defun function-to-node (function)
+  (when (and (stringp function)
+             (string-match "^\\(### [[:upper:]][[:alpha:]- ]+\\)$" function))
+    (concat (s-replace "### " "* " (match-string 1 function)) "::")))
+
+(defun function-to-info (function)
   (if (stringp function)
-      (concat "\n" (s-replace "### " "## " function) "\n")
+      (concat "\n" (s-replace "### " "@node " function) "\n"
+              (when (string-match "^### " function)
+                (s-replace "### " "@section " function)) "\n")
     (-let [(command-name signature docstring examples) function]
-      (format "#### %s `%s`\n\n%s\n\n```el\n%s\n```\n"
+      (format (concat "@anchor{%s}\n"
+                      "@defun %s %s\n"
+                      "%s\n\n"
+                      "@example\n%s\n@end example\n@end defun\n")
+              command-name
               command-name
               signature
               (format-docstring docstring)
@@ -139,15 +148,28 @@ FUNCTION may reference an elisp function, alias, macro or a subr."
   (search-forward s)
   (delete-char (- (length s))))
 
-(defun create-docs-file ()
+(defun create-info-file ()
   (let ((functions (nreverse functions)))
-    (with-temp-file "./README.md"
-      (insert-file-contents-literally "./readme-template.md")
+    (with-temp-file "./dash.texi"
+      (insert-file-contents-literally "./dash-template.texi")
 
-      (goto-and-remove "[[ function-list ]]")
-      (insert (mapconcat 'function-summary functions "\n"))
+      (goto-and-remove "@c [[ function-nodes ]]")
+      (insert (mapconcat 'function-to-node
+                         (-filter (lambda (s)
+                                    (when (stringp s)
+                                      (string-match "^### " s)))
+                                  functions)
+                         "\n"))
 
-      (goto-and-remove "[[ function-docs ]]")
-      (insert (mapconcat 'function-to-md functions "\n"))
+      (goto-and-remove "@c [[ function-nodes ]]")
+      (insert (mapconcat 'function-to-node
+                         (-filter (lambda (s)
+                                    (when (stringp s)
+                                      (string-match "^### " s)))
+                                  functions)
+                         "\n"))
+
+      (goto-and-remove "@c [[ function-docs ]]")
+      (insert (mapconcat 'function-to-info functions "\n"))
 
       (simplify-quotes))))
