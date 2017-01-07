@@ -10,7 +10,7 @@ Homepage: https://github.com/magnars/dash.el
 
 Package: dash-el
 Architecture: all
-Depends: ${shlibs:Depends}, ${misc:Depends}, emacsen-common (>= 2.0.8), emacs
+Depends: ${shlibs:Depends}, ${misc:Depends}, emacsen-common (>= 2.0.8)
 Description: Modern list manipulation library for Emacs
  dash.el is API library to manipulate a list by Emacs Lisp.
  This library offers very common feature in other programming languages
